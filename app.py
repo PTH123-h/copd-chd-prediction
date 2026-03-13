@@ -3,15 +3,15 @@ import pandas as pd
 import pickle
 import numpy as np
 
-# 1. 网页标题和基本设置
-st.set_page_config(page_title="老年COPD并发CHD风险预测", page_icon="🫁")
-st.title("🫁 老年COPD并发CHD风险预测模型")
+# 1. Page Configuration
+st.set_page_config(page_title="COPD-CHD Risk Predictor", page_icon="🩺")
+st.title("🩺 CHD Risk Prediction Model for Elderly COPD Patients")
 st.markdown("""
-**简介：** 本工具用于预测老年慢性阻塞性肺疾病（COPD）患者并发冠心病（CHD）的风险。
-**注意：** 本工具仅供医学研究与交流使用，不作为临床最终诊断依据。
+**Description:** This web-based interactive calculator predicts the risk of concurrent Coronary Heart Disease (CHD) in elderly patients with Chronic Obstructive Pulmonary Disease (COPD) using a Machine Learning (Random Forest) approach.
+***Disclaimer:** This tool is strictly for academic research and validation purposes. It should not be utilized as a substitute for professional clinical judgment or direct patient care.*
 """)
 
-# 2. 加载随机森林模型
+# 2. Load the Random Forest Model
 @st.cache_resource
 def load_model():
     with open('rf_model.pkl', 'rb') as f:
@@ -21,31 +21,27 @@ def load_model():
 try:
     model = load_model()
 except Exception as e:
-    st.error(f"模型加载失败，请确认 rf_model.pkl 文件在同级目录下。错误信息: {e}")
+    st.error(f"Error loading the model. Please ensure 'rf_model.pkl' is in the same directory. Error: {e}")
     st.stop()
 
-# 3. 侧边栏：输入患者特征
-st.sidebar.header("请填入患者的临床指标")
+# 3. Sidebar for Patient Characteristics Input
+st.sidebar.header("Patient Characteristics")
 
 def user_input_features():
-    # 分类变量
-    # 注意：请根据你训练模型时的设定调整，通常 0=女，1=男，如果相反请对调这里的逻辑
-    gender_option = st.sidebar.selectbox('性别 (GENDER)', ['男 (Male)', '女 (Female)'])
-    gender = 1 if gender_option == '男 (Male)' else 0
+    # Categorical variables
+    gender_option = st.sidebar.selectbox('Gender', ['Male', 'Female'])
+    gender = 1 if gender_option == 'Male' else 0
 
-    # 连续变量 (这里的默认值、最大最小值你可以根据实际医学单位和范围进行微调)
-    age = st.sidebar.number_input('年龄 (AGE, 岁)', min_value=40, max_value=120, value=75)
-    
-    # 实验室指标 (假设常用单位，请务必核对是否与你训练数据单位一致)
-    ua = st.sidebar.number_input('尿酸 (UA, μmol/L)', min_value=0.0, max_value=1000.0, value=350.0)
-    hs_crp = st.sidebar.number_input('超敏C反应蛋白 (hs_CRP, mg/L)', min_value=0.0, max_value=200.0, value=5.0)
-    glu = st.sidebar.number_input('空腹血糖 (Glu, mmol/L)', min_value=0.0, max_value=50.0, value=5.5)
-    bun = st.sidebar.number_input('血尿素氮 (BUN, mmol/L)', min_value=0.0, max_value=100.0, value=6.0)
-    hs_ctni = st.sidebar.number_input('超敏肌钙蛋白I (hs_cTnI, pg/mL)', min_value=0.0, max_value=10000.0, value=15.0)
-    tt = st.sidebar.number_input('凝血酶时间 (TT, 秒)', min_value=0.0, max_value=100.0, value=18.0)
+    # Continuous variables 
+    age = st.sidebar.number_input('Age (years)', min_value=40, max_value=120, value=75)
+    ua = st.sidebar.number_input('Uric Acid (UA, μmol/L)', min_value=0.0, max_value=1000.0, value=350.0)
+    hs_crp = st.sidebar.number_input('High-sensitivity CRP (hs-CRP, mg/L)', min_value=0.0, max_value=200.0, value=5.0)
+    glu = st.sidebar.number_input('Fasting Glucose (Glu, mmol/L)', min_value=0.0, max_value=50.0, value=5.5)
+    bun = st.sidebar.number_input('Blood Urea Nitrogen (BUN, mmol/L)', min_value=0.0, max_value=100.0, value=6.0)
+    hs_ctni = st.sidebar.number_input('High-sensitivity cTnI (hs-cTnI, pg/mL)', min_value=0.0, max_value=10000.0, value=15.0)
+    tt = st.sidebar.number_input('Thrombin Time (TT, s)', min_value=0.0, max_value=100.0, value=18.0)
 
-    # ！！！关键：这里的字典 Key 必须和你的变量名严格一致（大小写必须完全相同）！！！
-    # 你的变量：'GENDER', 'UA', 'hs_CRP', 'Glu', 'AGE', 'BUN', 'hs_cTnI', 'TT'
+    # Ensure keys match exactly with the model's feature names
     data = {
         'GENDER': gender,
         'UA': ua,
@@ -58,7 +54,7 @@ def user_input_features():
     }
     features = pd.DataFrame(data, index=[0])
     
-    # 确保列的顺序与你提供的完全一致
+    # Ensure column order matches exactly
     cols_order = ['GENDER', 'UA', 'hs_CRP', 'Glu', 'AGE', 'BUN', 'hs_cTnI', 'TT']
     features = features[cols_order]
     
@@ -66,31 +62,26 @@ def user_input_features():
 
 input_df = user_input_features()
 
-# 4. 在主界面展示用户的输入
-st.subheader('患者当前输入的指标：')
-st.write(input_df)
-
-# 5. 预测按钮及结果展示
+# 4. Prediction Button and Result Display
 st.divider()
-if st.button('点击预测并发冠心病(CHD)风险'):
+if st.button('Predict CHD Risk'):
     try:
-        # 提取预测概率 (类别1的概率)
+        # Extract the probability of class 1 (CHD)
         prediction_prob = model.predict_proba(input_df)[:, 1][0]
         
-        st.subheader('预测结果')
-        # 放大显示概率
-        st.metric(label="并发CHD的概率", value=f"{prediction_prob:.1%}")
+        st.subheader('Prediction Result')
+        st.metric(label="Estimated Probability of Concurrent CHD", value=f"{prediction_prob:.1%}")
         
-        # 进度条
+        # Visual progress bar
         st.progress(float(prediction_prob))
         
-        # 风险判断 (你指定的阈值 0.5)
+        # Risk assessment interpretation
         cutoff = 0.50
         if prediction_prob >= cutoff:
-            st.error(f'⚠️ **高风险 (High Risk)**：该患者并发冠心病(CHD)的预测概率大于或等于 {cutoff*100}%。')
+            st.error('⚠️ **High Risk Profile:** The model indicates an elevated risk of concurrent Coronary Heart Disease for this patient. Closer clinical monitoring and further cardiovascular assessment may be warranted.')
         else:
-            st.success(f'✅ **低风险 (Low Risk)**：该患者并发冠心病(CHD)的预测概率低于 {cutoff*100}%。')
+            st.success('✅ **Low Risk Profile:** The model indicates a lower risk of concurrent Coronary Heart Disease. Routine standard-of-care follow-up is recommended.')
 
     except Exception as e:
-        st.error(f"预测出错啦: {e}")
-        st.warning("请检查训练模型时使用的库版本或特征名是否完全对应。")
+        st.error(f"Prediction Error: {e}")
+        st.warning("Please verify that the feature names and data types match the training environment exactly.")
